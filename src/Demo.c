@@ -3,6 +3,8 @@
 #include <avr/sleep.h>
 #include <stdio.h>
 
+const int bounce_floor = 8000;
+
 void led_init()
 {
     /* setup D13 led as output */
@@ -12,10 +14,7 @@ void led_init()
 void led_toggle()
 {
     /* toggle on board LED */
-    PINB |= (1 << PINB5);
-
-    // can also use xor
-    //PORTB ^= (1 << PORTB5);
+    PORTB ^= (1 << PORTB5);
 }
 
 void button_init()
@@ -30,18 +29,28 @@ void button_init()
 ISR (INT0_vect)
 {
     led_toggle();
+    // check timer
+    if (TCNT0 > bounce_floor)
+    {
+        led_toggle();
+        TCNT0 = 0;
+    }
+    
 }
 
 int main(void) 
 {   
     led_init();
     button_init();
+    cli();
+    // setup clock
+    TCCR0A = 0x00;
+    TCCR0B  |= (1 << CS00);
     sei(); // enable global interrupt
     
     set_sleep_mode(SLEEP_MODE_STANDBY);
     for(;;)
     { 
-        sei();
         sleep_mode();
     }
 
