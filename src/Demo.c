@@ -3,7 +3,17 @@
 #include <avr/sleep.h>
 #include <stdio.h>
 
-const int bounce_floor = 8000;
+#define XTAL_FREQUENCY (16000000UL) /* Unit is 1 Hz */
+#define TICK_FREQUENCY (100U) /* Unit is 1 Hz */
+#define XTAL_COUNTS_PER_TICK (XTAL_FREQUENCY / TICK_FREQUENCY)
+#define MIN_TIME_BETWEEN_BUTTON_PUSHES (50U) /* Unit is 1 ms. */
+#define MILLISECONDS_PER_SECOND (1000U)
+#define MIN_TICKS_BETWEEN_BUTTON_PUSHES ( \
+    (TICK_FREQUENCY * MIN_TIME_BETWEEN_BUTTON_PUSHES) \
+    / MILLISECONDS_PER_SECOND \
+)
+
+volatile unsigned long last_button_push;
 
 void led_init()
 {
@@ -28,27 +38,29 @@ void button_init()
 
 ISR (INT0_vect)
 {
-    led_toggle();
-    // check timer
-    if (TCNT0 > bounce_floor)
+    if ((TCNT1 - last_button_push) > MIN_TICKS_BETWEEN_BUTTON_PUSHES)
     {
         led_toggle();
-        TCNT0 = 0;
+        last_button_push = TCNT1;
     }
-    
 }
 
-int main(void) 
-{   
+void clock_init()
+{
+    cli();
+    TCCR1A = 0x00;
+    TCCR1B  |= (1 << CS10);
+    TCNT1 = 0;
+    sei();
+}
+
+int main(void)
+{
     led_init();
     button_init();
-    cli();
-    // setup clock
-    TCCR0A = 0x00;
-    TCCR0B  |= (1 << CS00);
-    sei(); // enable global interrupt
-    
+    clock_init();
     set_sleep_mode(SLEEP_MODE_STANDBY);
+
     for(;;)
     { 
         sleep_mode();
